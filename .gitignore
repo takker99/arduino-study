@@ -1,15 +1,15 @@
 # PlatformIO
-arduino/.pio/
-arduino/.vscode/.browse.c_cpp.db*
-arduino/.vscode/c_cpp_properties.json
-arduino/.vscode/launch.json
-arduino/.vscode/ipch/
+.pio/
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch/
 
 # Node.js
-nodejs/node_modules/
-nodejs/.npm
-nodejs/*.log
-nodejs/.env
+node_modules/
+.npm
+*.log
+.env
 
 # VSCode
 .vscode/settings.json
@@ -39,7 +39,7 @@ Thumbs.db
 *.log
 
 # Build outputs
-arduino/lib/readme.txt
+lib/readme.txt
 
 # Hardware specific
-hardware/*.fzz~
+*.fzz~
