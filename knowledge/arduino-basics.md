@@ -121,13 +121,13 @@ const long interval = 1000;
 
 void loop() {
     unsigned long currentMillis = millis();
-    
+
     if (currentMillis - previousMillis >= interval) {
         previousMillis = currentMillis;
         // LED状態を切り替え
         digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
     }
-    
+
     // 他の処理も並行実行可能
 }
 ```

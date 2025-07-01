@@ -142,7 +142,7 @@ pio lib install "SomeLibrary"
 
 # 3. platformio.iniでの依存関係確認
 [env]
-lib_deps = 
+lib_deps =
     SomeLibrary@^1.0.0
 ```
 
@@ -230,7 +230,7 @@ lib_ldf_mode = deep        # より詳細な依存関係解析
 lib_compat_mode = strict   # 厳密な互換性チェック
 
 # 特定ライブラリの除外
-lib_ignore = 
+lib_ignore =
     SomeConflictingLibrary
 ```
 

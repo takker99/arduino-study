@@ -120,7 +120,7 @@ pio lib install "https://github.com/bogde/HX711.git"
 ```ini
 [env]
 # ...既存設定...
-lib_deps = 
+lib_deps =
     HX711@^0.7.5
     ArduinoJson@^6.19.0
     https://github.com/example/CustomLibrary.git
@@ -159,11 +159,11 @@ int MyLibrary::readSensor() {
 ### ビルドオプションの調整
 ```ini
 [env:day1]
-build_flags = 
+build_flags =
     -DDEBUG_MODE=1
     -DBAUD_RATE=115200
     -Os                    # サイズ最適化
-    
+
 monitor_speed = 115200     # シリアルモニター速度
 upload_speed = 115200      # アップロード速度
 ```
@@ -177,13 +177,13 @@ build_flags = -DDAY1_MODE
 [env:day2]
 # Day 2: アナログ入力
 build_flags = -DDAY2_MODE
-lib_deps = 
+lib_deps =
     SoftwareSerial
 
 [env:day3]
 # Day 3: HX711使用
 build_flags = -DDAY3_MODE
-lib_deps = 
+lib_deps =
     HX711
 ```
 
@@ -270,7 +270,7 @@ pio run -j 4
 ### メモリ使用量の最適化
 ```ini
 [env]
-build_flags = 
+build_flags =
     -Os                 # サイズ最適化
     -ffunction-sections # 関数単位での最適化
     -fdata-sections     # データ単位での最適化
@@ -289,20 +289,20 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
-    
+
     - name: Install PlatformIO
       run: pip install platformio
-    
+
     - name: Build Day 1
       run: pio run -e day1
-    
+
     - name: Build Day 2
       run: pio run -e day2
 ```
