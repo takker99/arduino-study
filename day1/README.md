@@ -33,11 +33,16 @@
 
 ## 🛠 実装ステップ
 
-### Step 1: PlatformIOプロジェクトの初期化
+### Step 1: PlatformIOプロジェクトの確認
+
+プロジェクトはすでに初期化されています。現在の構造を確認しましょう：
 
 ```bash
-cd arduino
-pio project init --board uno
+# プロジェクト構造の確認
+ls -la
+
+# PlatformIO設定の確認
+cat platformio.ini
 ```
 
 ### Step 2: 基本的なLED点滅プログラム
