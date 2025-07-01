@@ -55,21 +55,21 @@ Arduino学習プロジェクト - 土質試験機制御システム開発のた�
 ## 📁 プロジェクト構造
 
 ```
-arduino-study/
-├── arduino/                    # PlatformIOプロジェクト
-│   ├── src/                   # Arduinoソースコード
-│   ├── lib/                   # ライブラリ
-│   └── platformio.ini         # PlatformIO設定
-├── nodejs/                     # Node.js制御アプリ
-│   ├── src/                   # Node.jsソースコード
-│   ├── public/                # Web UI
-│   └── package.json           # Node.js依存関係
-├── docs/                       # 学習ドキュメント
-│   ├── day1/                  # 日別学習記録
-│   ├── day2/
-│   └── ...
-├── hardware/                   # 回路図・配線図
-└── tests/                      # テストコード
+arduino-study/                 # PlatformIOプロジェクト（ルート）
+├── .pio/                     # PlatformIOビルドキャッシュ
+├── .vscode/                  # VSCode設定
+├── platformio.ini            # PlatformIO設定
+├── day1/                     # Day 1学習コンテンツ
+│   ├── README.md             # Day 1学習ガイド
+│   └── main.cpp              # Day 1のArduinoコード
+├── day2/                     # Day 2学習コンテンツ（予定）
+├── day3/                     # Day 3学習コンテンツ（予定）
+├── ...                       # Day 4-7（予定）
+├── knowledge/                # プロジェクト知識ベース
+│   ├── project-structure.md  # プロジェクト構造説明
+│   └── development-environment.md # 開発環境説明
+├── chat.md                   # 学習履歴
+└── README.md                 # このファイル
 ```
 
 ## 🚀 クイックスタート
@@ -80,16 +80,25 @@ git clone https://github.com/takker99/arduino-study.git
 cd arduino-study
 ```
 
-### 2. PlatformIOプロジェクトの初期化
+### 2. Day 1プログラムのビルドとアップロード
 ```bash
-cd arduino
-pio project init --board uno
+# Day 1のビルド
+pio run -e day1
+
+# Day 1のアップロード
+pio run -e day1 --target upload
+
+# シリアルモニター
+pio device monitor --baud 9600
 ```
 
-### 3. Node.js環境の準備
+### 3. 他の日のプログラム（将来）
 ```bash
-cd ../nodejs
-npm install
+# Day 2のビルド（作成後）
+pio run -e day2
+
+# Day 3のビルド（作成後）
+pio run -e day3
 ```
 
 ## 📚 学習リソース
@@ -110,12 +119,12 @@ npm install
 
 ## 📝 学習記録
 
-各日の学習内容は `docs/` フォルダ内に記録していきます。
+各日の学習内容は `dayXX/` フォルダ内のREADME.mdに記録していきます。
 
 ## 🎯 マイルストーン
 
 - [x] リポジトリ作成
-- [ ] Day 1: 基本環境構築
+- [x] Day 1: 基本環境構築とLED点滅
 - [ ] Day 2: センサー基礎
 - [ ] Day 3: HX711実装
 - [ ] Day 4: Node.js通信
@@ -127,13 +136,13 @@ npm install
 
 MIT License
 
-## 💡 今日から始める場合
+## 💡 学習を始める場合
 
-今日（Day 1）から始める場合は、以下のステップに従ってください：
+各日の学習を始める場合は、以下のステップに従ってください：
 
-1. `docs/day1/README.md` を確認して学習内容を把握
-2. PlatformIOプロジェクトを初期化
-3. 基本的なLED点滅プログラムを実行
-4. シリアル通信の動作確認
+1. `dayXX/README.md` を確認して学習内容を把握
+2. 対応する環境でビルド: `pio run -e dayXX`
+3. Arduinoにアップロード: `pio run -e dayXX --target upload`
+4. 動作確認とシリアル通信テスト
 
 詳細な手順は各日のドキュメントを参照してください。
