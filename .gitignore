@@ -1,0 +1,45 @@
+# PlatformIO
+arduino/.pio/
+arduino/.vscode/.browse.c_cpp.db*
+arduino/.vscode/c_cpp_properties.json
+arduino/.vscode/launch.json
+arduino/.vscode/ipch/
+
+# Node.js
+nodejs/node_modules/
+nodejs/.npm
+nodejs/*.log
+nodejs/.env
+
+# VSCode
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/extensions.json
+.vscode/*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+
+# Build outputs
+arduino/lib/readme.txt
+
+# Hardware specific
+hardware/*.fzz~
