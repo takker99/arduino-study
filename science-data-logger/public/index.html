@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扇風機制御データロガー</title>
+    <script type="module" src="/src/client.ts"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #3498db, #2ecc71);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .card h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .sensor-item {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 4px solid #3498db;
+            transition: border-color 0.3s ease;
+        }
+
+        .sensor-item.warning {
+            border-left-color: #f39c12;
+        }
+
+        .sensor-item.danger {
+            border-left-color: #e74c3c;
+        }
+
+        .sensor-label {
+            font-size: 0.9em;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+
+        .sensor-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .control-panel {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 15px;
+        }
+
+        .control-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .mode-toggle {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+            min-width: 100px;
+        }
+
+        .mode-toggle:hover {
+            background: #2980b9;
+        }
+
+        .mode-toggle.manual {
+            background: #e74c3c;
+        }
+
+        .mode-toggle.manual:hover {
+            background: #c0392b;
+        }
+
+        .speed-slider {
+            flex: 1;
+            height: 8px;
+            border-radius: 5px;
+            background: #ecf0f1;
+            outline: none;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .speed-slider:hover {
+            opacity: 1;
+        }
+
+        .speed-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+        }
+
+        .speed-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .fan-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .fan-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #ecf0f1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .fan-icon.running {
+            background: #2ecc71;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-top: 20px;
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 25px;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .connection-status.connected {
+            background: #2ecc71;
+        }
+
+        .connection-status.disconnected {
+            background: #e74c3c;
+        }
+
+        .export-btn {
+            background: #16a085;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+            margin-top: 15px;
+        }
+
+        .export-btn:hover {
+            background: #138d75;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .sensor-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .control-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .speed-slider {
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status disconnected" id="status">未接続</div>
+
+    <div class="container">
+        <h1>🌀 扇風機制御データロガー</h1>
+
+        <div class="dashboard">
+            <div class="card">
+                <h3>📊 センサー監視</h3>
+                <div class="sensor-grid">
+                    <div class="sensor-item">
+                        <div class="sensor-label">ポテンショメータ</div>
+                        <div class="sensor-value" id="potValue">--</div>
+                    </div>
+                    <div class="sensor-item">
+                        <div class="sensor-label">温度</div>
+                        <div class="sensor-value" id="tempValue">-- °C</div>
+                    </div>
+                    <div class="sensor-item">
+                        <div class="sensor-label">光センサー</div>
+                        <div class="sensor-value" id="lightValue">--</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="sensorChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🎛️ 制御パネル</h3>
+                <div class="control-panel">
+                    <div class="control-row">
+                        <button id="connectButton">接続</button>
+                        <button id="disconnectButton" disabled>切断</button>
+                    </div>
+
+                    <div class="control-row">
+                        <span>風速:</span>
+                        <input type="range" class="speed-slider" id="speedSlider" min="0" max="100" value="0" disabled>
+                        <span class="speed-value" id="speedValue">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
