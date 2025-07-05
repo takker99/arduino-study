@@ -1,5 +1,5 @@
 import Chart from 'chart.js/auto';
-import type { ClientToServer, ServerToClient } from './server';
+import type { ClientToServer, ServerToClient } from './types';
 
 
 const ws = new WebSocket('/ws');
