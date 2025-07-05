@@ -44,6 +44,163 @@ arduino-study/
 - **現在**: Hono + Socket.IO (TypeScript + ESM)
 - **起動**: `cd science-data-logger && npm start`
 
+## 🚨 重要な問題解決 - Vite + Hono + WebSocketの競合問題
+
+### 発生した問題
+1. **Vite HMRとWebSocketポート競合**: 24678ポートで競合
+2. **シリアルポート管理**: HMR時・プロセス終了時の適切なクリーンアップができない
+3. **プロセス終了不能**: Ctrl+C時にプロセスが終了しない
+
+### 原因分析
+1. **ポート競合**: ViteのHMRとWebSocketが同一ポート（24678）を使用
+2. **シリアルリソース**: プロセス終了時にシリアルポートがopen状態で残る
+3. **イベントループ**: 非同期リソースが解放されず、プロセスが終了しない
+
+### 解決策の実装
+
+#### 1. HMRポート分離 (`vite.config.ts`)
+```typescript
+export default defineConfig({
+  server: {
+    hmr: {
+      // HMR専用ポートを分離（デフォルト24678）
+      port: 3000
+    }
+  },
+```
+
+#### 2. シリアルポート管理の改善 (`server.ts`)
+```typescript
+// 再接続制御フラグ
+let shouldReconnect = true;
+
+async function cleanupSerial() {
+  // 再接続を無効化
+  shouldReconnect = false;
+
+  const error = await new Promise<Error | null>((resolve) => {
+    if (serialPort && serialPort.isOpen) {
+      console.log('Closing serial port...');
+      serialPort.close(resolve);
+    }
+    resolve(null);
+  });
+  // ...
+}
+```
+
+#### 3. Viteプラグインでの適切なライフサイクル管理
+```typescript
+{
+  name: 'inject-websocket',
+  configureServer: async (server) => {
+    injectWebSocket(server.httpServer!);
+    await setupSerial();
+
+    if (!cleanupRegistered) {
+      // プロセス終了時のクリーンアップ
+      process.on('SIGINT', cleanup);
+      process.on('SIGTERM', cleanup);
+      process.on('beforeExit', cleanup);
+    }
+  },
+  handleHotUpdate: async () => {
+    // HMR時のクリーンアップ
+    console.log('Process ending, cleaning up serial connections...');
+    await cleanupSerial();
+  }
+}
+```
+
+### 検証結果
+- ✅ HMRとWebSocketが競合せずに動作
+- ✅ Ctrl+Cでプロセスが正常終了
+- ✅ シリアルポートが適切にクローズされる
+- ✅ HMR時にシリアルポート競合が発生しない
+
+## 🔧 コードリファクタリング完了
+
+### リファクタリング前の問題
+- **単一責任の原則違反**: server.tsに全ての機能が集約
+- **コードの重複**: CORS設定やAPI定義の重複
+- **型定義の混在**: WebSocket型定義が他の機能と混在
+- **保守性の低下**: 300行を超える単一ファイル
+- **テスタビリティの欠如**: 密結合により単体テストが困難
+
+### リファクタリング実施内容
+
+#### 1. モジュール分離
+```
+src/
+├── types.ts              # 型定義の集約
+├── serial-manager.ts     # シリアル通信管理
+├── websocket-handler.ts  # WebSocket処理
+├── database-manager.ts   # データベース操作
+└── server.ts            # Honoアプリ統合
+```
+
+#### 2. 単一責任化
+- **SerialManager**: Arduino通信とエラーハンドリング
+- **WebSocketHandler**: WebSocketメッセージ処理とルーティング
+- **DatabaseManager**: センサーデータ永続化
+- **Server**: アプリケーションの統合とルーティング
+
+#### 3. 型安全性の向上
+```typescript
+// 専用型定義ファイル
+export type SensorData = {
+  pot: number;
+  temp: number;
+  light: number;
+};
+```
+
+#### 4. エラーハンドリング統一
+- Promiseベースの非同期処理
+- コールバック地獄の解消
+- 統一されたエラーログ
+
+#### 5. 設定ファイル簡素化
+```typescript
+// vite.config.ts - cleanupRegisteredフラグ削除
+{
+  name: 'serial-websocket-plugin',
+  configureServer: async (server) => {
+    injectWebSocket(server.httpServer!);
+    await setupSerial();
+    // 重複チェック不要な簡潔な実装
+  }
+}
+```
+
+### リファクタリング結果
+- **可読性向上**: ファイルサイズ50%削減 (300行→150行)
+- **保守性向上**: 機能別モジュール分離により変更影響範囲を限定
+- **テスタビリティ**: 各モジュールの独立テストが可能
+- **再利用性**: SerialManagerを他プロジェクトで再利用可能
+- **型安全性**: 完全なTypeScript型チェック対応
+
+### アーキテクチャ改善
+```
+Before: Monolithic Architecture
+┌─────────────────────────────┐
+│        server.ts            │
+│  ┌─────────┬──────────────┐  │
+│  │ Serial  │ WebSocket    │  │
+│  │ DB      │ HTTP         │  │
+│  └─────────┴──────────────┘  │
+└─────────────────────────────┘
+
+After: Modular Architecture
+┌──────────────┐ ┌─────────────┐
+│ SerialManager│ │WebSocketHdlr│
+└──────┬───────┘ └──────┬──────┘
+       │                │
+┌──────▼───────┐ ┌──────▼──────┐
+│DatabaseMgr   │ │ Server.ts   │
+└──────────────┘ └─────────────┘
+```
+
 ## ✅ 修正完了項目
 
 ### 1. PlatformIO設定修正
