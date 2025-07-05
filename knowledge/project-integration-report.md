@@ -139,14 +139,38 @@ lsusb | grep Arduino
 **症状**: Socket.IO接続エラー
 **解決**: ✅ 修正済み（同一ポート統合）
 
-## 📈 プロジェクト進捗
+## 🐛 開発中に発見された問題と解決策
 
-- ✅ **Arduino開発環境**: PlatformIO + WSL2
-- ✅ **Webサーバー**: Hono + TypeScript
-- ✅ **リアルタイム通信**: Socket.IO
-- ✅ **データベース**: SQLite
-- ✅ **Web UI**: HTML + CSS + JavaScript
-- ✅ **ディレクトリ統合**: 単一プロジェクト化
+### Vite + Hono + WebSocket競合問題
+
+**発生日**: 2025年7月5日
+
+**症状**:
+- `npm run dev`実行時にWebSocketエラーが連続発生
+- `ReferenceError: ErrorEvent is not defined`
+- `ws proxy socket error: Error: write EPIPE`
+- クライアント側で無限リロード
+
+**原因**:
+ViteのHMR (Hot Module Replacement) サーバーとHono+WebSocketサーバーが同じポート空間で競合。
+
+**解決策**:
+`vite.config.ts`でHMRポートを分離:
+```typescript
+export default defineConfig({
+  server: {
+    hmr: {
+      port: 24678, // デフォルト5173以外の専用ポート
+    },
+  },
+  // ...existing plugins
+});
+```
+
+**学習ポイント**:
+- Viteの開発サーバーは複数のWebSocketを使用（HMR + アプリケーション）
+- ポート競合は必ずしも`EADDRINUSE`エラーで明示されない
+- `@hono/node-ws`とViteのWebSocketプロキシは慎重な設定が必要
 
 ## 🎉 統合完了
 
@@ -157,5 +181,6 @@ lsusb | grep Arduino
 - Web UI表示: ✅
 - API応答: ✅
 - ビルド設定: ✅
+- WebSocket通信: ✅ (HMRポート分離により解決)
 
 プロジェクトの統合が完了しました！🎊
