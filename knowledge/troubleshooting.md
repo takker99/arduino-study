@@ -405,12 +405,121 @@ int read_sensor_safe() {
 }
 ```
 
+## 🌐 Vite + Hono + WebSocket開発の問題
+
+### ViteのHMRとWebSocketの競合エラー
+
+#### 症状
+```bash
+Error: write EPIPE
+ReferenceError: ErrorEvent is not defined
+5:49:52 PM [vite] ws proxy socket error:
+Error [ERR_STREAM_WRITE_AFTER_END]: write after end
+```
+
+Web開発サーバー起動時に以下のようなエラーが繰り返し発生し、WebSocket接続が失敗する：
+- `ws proxy socket error`
+- `ReferenceError: ErrorEvent is not defined`
+- クライアント側で無限リロードが発生
+
+#### 原因
+ViteのHMR (Hot Module Replacement) サーバーとアプリケーションのWebSocketサーバーが同じポート空間で競合しているため。特に：
+
+1. **ポート競合**: ViteのHMRサーバーとHono+WebSocketサーバーが同じポートを使用
+2. **プロキシ設定の競合**: ViteのWebSocketプロキシと`@hono/node-ws`が干渉
+3. **Node.js環境での`ErrorEvent`未定義**: ブラウザ専用APIがサーバーサイドで呼び出される
+
+#### 解決策
+
+**方法1: HMRポートの分離（推奨）**
+
+`vite.config.ts`でHMRサーバーのポートを明示的に指定：
+
+```typescript
+export default defineConfig({
+  server: {
+    hmr: {
+      port: 24678, // HMR専用ポート（デフォルトの5173以外）
+    },
+  },
+  plugins: [
+    // ... existing plugins
+  ],
+});
+```
+
+**方法2: WebSocketプロキシ設定の調整**
+
+```typescript
+export default defineConfig({
+  server: {
+    hmr: {
+      port: 24678,
+    },
+    proxy: {
+      '/ws': {
+        target: 'ws://localhost:5173',
+        ws: true,
+        changeOrigin: true,
+      },
+    },
+  },
+});
+```
+
+**方法3: Socket.IOへの移行**
+
+`@hono/node-ws`の代わりに`socket.io`を使用することで、より安定したWebSocket通信を実現：
+
+```typescript
+// vite.config.ts
+import { Server } from 'socket.io';
+
+export default defineConfig({
+  plugins: [
+    {
+      name: 'socket-io-server',
+      configureServer: (server) => {
+        const io = new Server(server.httpServer!, {
+          path: '/ws',
+          transports: ['websocket'],
+        });
+        // Socket.IOイベント処理
+      },
+    }
+  ],
+});
+```
+
+#### 検証方法
+
+```bash
+# 開発サーバー起動
+npm run dev
+
+# 別ターミナルでポート使用状況確認
+netstat -tlnp | grep :5173
+netstat -tlnp | grep :24678
+```
+
+#### ベストプラクティス
+
+1. **HMRとアプリケーションポートの分離**: 常に異なるポートを使用
+2. **WebSocket実装の選択**:
+   - 簡単な用途: `@hono/node-ws`
+   - 複雑な用途: `socket.io`（より安定）
+3. **開発時の設定**: `vite.config.ts`で明示的にポート設定を行う
+
+#### 関連するエラーパターン
+
+- `EADDRINUSE: address already in use`
+- `Failed to construct 'URL': Invalid URL`
+- `WebSocket connection failed: Invalid frame header`
+
+#### 更新日
+2025年7月5日 - ViteのHMRとWebSocketの競合問題解決法を追加
+
 ## 📝 更新履歴
 
+- **2025年7月5日**: Vite + Hono + WebSocket開発の競合問題を追加
 - **2025年7月1日**: 初版作成、WSL2環境に特化したトラブルシューティングを整理
-
-## 🔗 参考資料
-
-- [Arduino Troubleshooting Guide](https://www.arduino.cc/en/Guide/Troubleshooting)
-- [PlatformIO Troubleshooting](https://docs.platformio.org/en/latest/faq.html)
-- [WSL USB Documentation](https://docs.microsoft.com/en-us/windows/wsl/connect-usb)
