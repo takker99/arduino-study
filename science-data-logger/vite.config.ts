@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import devServer from '@hono/vite-dev-server';
-import { injectWebSocket, setupSerial, cleanupSerial } from './src/server';
+import { setupSerial, cleanupSerial } from './src/server';
 
 export default defineConfig({
   server: {
@@ -19,11 +19,11 @@ export default defineConfig({
     {
       name: 'serial-websocket-plugin',
       configureServer: async (server) => {
+        // シリアルポート接続を開始
+        const injectWebSocket = await setupSerial();
+
         // WebSocketを注入
         injectWebSocket(server.httpServer!);
-
-        // シリアルポート接続を開始
-        await setupSerial();
 
         // プロセス終了時のクリーンアップを設定
         const cleanup = async () => {

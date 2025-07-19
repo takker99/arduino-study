@@ -3,7 +3,7 @@ import { createNodeWebSocket } from '@hono/node-ws';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { databaseManager } from './database-manager';
-import { serialManager } from './serial-manager';
+import { SerialPortWrapper, findArduinoPort } from './serial-manager';
 import { webSocketHandler } from './websocket-handler';
 
 const app = new Hono();
@@ -22,17 +22,21 @@ serialManager.onData((data) => {
   databaseManager.saveSensorData(data).catch(console.error);
 });
 
-// WebSocket設定
-const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
-
-export const wsApp = app.get(
-  '/ws',
-  upgradeWebSocket(webSocketHandler.createHandler())
-);
 
 // 必要な関数・オブジェクトをエクスポート
 export async function setupSerial() {
-  await serialManager.connect();
+  const port = await findArduinoPort();
+  const serialManager = new SerialPortWrapper(port);
+
+  // WebSocket設定
+  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+
+  app.get(
+    '/ws',
+    upgradeWebSocket(webSocketHandler.createHandler())
+  );
+
+  return injectWebSocket
 }
 
 export async function cleanupSerial() {
@@ -48,4 +52,3 @@ export function isSerialConnected(): boolean {
 }
 
 export default app;
-export { injectWebSocket };

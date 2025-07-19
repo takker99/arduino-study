@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
-import type { WSContext } from 'hono/ws';
+import type { WSContext, WSEvents } from 'hono/ws';
+import type { WebSocket } from 'ws';
 import { serialManager } from './serial-manager';
 import type { ClientToServer, ServerToClient, SensorData } from './types';
 
@@ -19,12 +20,12 @@ export class WebSocketHandler {
   /**
    * WebSocket接続ハンドラを生成
    */
-  createHandler() {
-    return (_c: Context) => {
+  createHandler(): (context: Context) => WSEvents<WebSocket> {
+    return () => {
       let intervalId: NodeJS.Timeout | undefined;
 
       return {
-        onOpen: (_event: Event, ws: WSContext) => {
+        onOpen: (_, ws) => {
           // 接続状態を送信
           this.sendMessage(ws, { type: 'status', connected: true });
 
@@ -39,7 +40,7 @@ export class WebSocketHandler {
           }, 1000);
         },
 
-        onMessage: async (event: MessageEvent, ws: WSContext) => {
+        onMessage: async (event, ws) => {
           try {
             const dataStr = await this.extractMessage(event);
             if (!dataStr) return;
@@ -60,7 +61,7 @@ export class WebSocketHandler {
           }
         },
 
-        onError: (_evt: Event, ws: WSContext) => {
+        onError: (_, ws) => {
           this.sendMessage(ws, {
             type: 'error',
             message: 'WebSocket error'

@@ -1,192 +1,224 @@
 import { ReadlineParser } from '@serialport/parser-readline';
 import { SerialPort } from 'serialport';
 import type { PortInfo } from './bindings-interface';
-import type { SensorData } from './types';
+
 
 /**
- * Arduinoとのシリアル通信を管理するクラス
+ * WICG Web Serial API仕様に準拠したSerialPortラッパー
+ * https://wicg.github.io/serial/
+ *
+ * Node.js serialportによる実装のため、以下の差異があります：
+ * - getInfo()の返却値はPortInfo型でWeb APIと完全一致しません
+ * - setSignals/getSignalsはserialportのAPIに依存し、Web APIと完全一致しません
+ * - forget()はダミー実装です
+ * - ストリームキャンセル時の挙動はWebと異なる場合があります
+ *
+ * @example
+ * const port = new SerialPortWrapper(serialPort);
+ * await port.open();
+ * const reader = port.readable.getReader();
+ * const writer = port.writable.getWriter();
+ * // ...
+ * await port.close();
  */
-export class SerialManager {
-  private serialPort: SerialPort | null = null;
-  private parser: ReadlineParser | null = null;
-  private shouldReconnect = true;
-  private onDataCallback?: (data: SensorData) => void;
-  private onMessageCallback?: (message: string) => void;
-  private onErrorCallback?: (error: Error) => void;
+export class SerialPortWrapper {
+  #serialPort: SerialPort;
+  #parser: ReadlineParser;
+  #readable: ReadableStream<string> | null;
+  #writable: WritableStream<string> | null;
+  #state: 'closed' | 'opening' | 'opened' | 'closing' | 'forgotten' = 'closed';
+  #readFatal = false;
+  #writeFatal = false;
+  #portInfo: PortInfo;
 
   /**
-   * データ受信コールバックを設定
+   * @param serialPortOptions SerialPortコンストラクタに渡す全オプション（baudRate, dataBits, stopBits, parity, highWaterMark, flowControl, path, autoOpen: false）
+   * @note Web Serial APIと異なり、open()でオプション変更はできません。インスタンス生成時に全て指定してください。
    */
-  onData(callback: (data: SensorData) => void) {
-    this.onDataCallback = callback;
+  constructor(serialPortOptions: any) {
+    this.#serialPort = new SerialPort({ ...serialPortOptions, autoOpen: false });
+    this.#parser = this.#serialPort.pipe(new ReadlineParser({ delimiter: '\n' }));
+    this.#portInfo = this.#serialPort as any as PortInfo;
+    this.#readable = null;
+    this.#writable = null;
   }
 
   /**
-   * メッセージ受信コールバックを設定
+   * ポートを開く（Web Serial API準拠）
+   * @note Node.js serialportの仕様上、open()で通信パラメータは変更できません。
    */
-  onMessage(callback: (message: string) => void) {
-    this.onMessageCallback = callback;
-  }
-
-  /**
-   * エラーコールバックを設定
-   */
-  onError(callback: (error: Error) => void) {
-    this.onErrorCallback = callback;
-  }
-
-  /**
-   * シリアルポートに接続
-   */
-  async connect(): Promise<void> {
-    if (!this.shouldReconnect) {
-      console.log('Serial reconnection is disabled, skipping setup');
-      return;
-    }
-
-    // 既存の接続をクローズ
-    await this.disconnect();
-
-    try {
-      const ports: PortInfo[] = await SerialPort.list();
-      const arduinoPort = ports.find(p =>
-        p.vendorId === '2341' ||
-        p.path.includes('ttyACM') ||
-        p.manufacturer?.toLowerCase().includes('arduino')
-      );
-
-      if (!arduinoPort) {
-        throw new Error('Arduinoが見つかりません');
-      }
-
-      const newSerialPort = new SerialPort({
-        path: arduinoPort.path,
-        baudRate: 9600,
-        autoOpen: false
+  async open(): Promise<void> {
+    if (this.#state !== 'closed') throw new Error('InvalidStateError: port is not closed');
+    this.#state = 'opening';
+    await new Promise<void>((resolve, reject) => {
+      this.#serialPort.open((error: Error | null | undefined) => {
+        if (error) {
+          this.#state = 'closed';
+          reject(error);
+        } else {
+          this.#state = 'opened';
+          // ストリーム生成
+          this.#readFatal = false;
+          this.#writeFatal = false;
+          this.#readable = new ReadableStream<string>({
+            start: (controller) => {
+              this.#parser.on('data', (data: string) => {
+                if (this.#state !== 'opened' || this.#readFatal) return;
+                controller.enqueue(data);
+              });
+              this.#serialPort.on('close', () => {
+                this.#state = 'closed';
+                this.#readable = null;
+                controller.close();
+              });
+              this.#serialPort.on('error', (err: Error) => {
+                this.#readFatal = true;
+                this.#readable = null;
+                controller.error(err);
+              });
+            },
+            cancel: () => this.close()
+          });
+          this.#writable = new WritableStream<string>({
+            write: (chunk) =>
+              new Promise<void>((resolve, reject) => {
+                this.#serialPort.write(chunk, (err) => {
+                  if (err) {
+                    this.#writeFatal = true;
+                    this.#writable = null;
+                    reject(err);
+                  } else {
+                    resolve();
+                  }
+                });
+              }),
+            close: () => this.close(),
+            abort: () => this.close()
+          });
+          resolve();
+        }
       });
+    });
+  }
 
-      this.serialPort = newSerialPort;
-      this.parser = newSerialPort.pipe(new ReadlineParser({ delimiter: '\n' }));
+  /**
+   * ポートを閉じる（Web Serial API準拠）
+   */
+  async close(): Promise<void> {
+    if (this.#state !== 'opened') return;
+    this.#state = 'closing';
+    // ストリームキャンセル
+    if (this.#readable) {
+      try { await this.#readable.cancel(); } catch {}
+      this.#readable = null;
+    }
+    if (this.#writable) {
+      try { await this.#writable.abort(); } catch {}
+      this.#writable = null;
+    }
+    await new Promise<void>((resolve, reject) =>
+      this.#serialPort.close((error) => {
+        this.#state = 'closed';
+        if (error) reject(error); else resolve();
+      })
+    );
+  }
 
-      // ポートを開く
-      await new Promise<void>((resolve, reject) => {
-        newSerialPort.open((err) => {
-          if (err) {
-            console.error('Error opening serial port:', err);
-            reject(err);
-          } else {
-            console.log('Serial port opened:', newSerialPort.path);
-            resolve();
-          }
+  /**
+   * ポート情報を返す（Web API: getInfo）
+   * @returns {PortInfo}
+   */
+  getInfo(): PortInfo {
+    return this.#portInfo;
+  }
+
+  /**
+   * 制御信号を設定（Web API: setSignals）
+   * @param signals {Partial<{ dataTerminalReady: boolean; requestToSend: boolean; }>}  ※breakは未対応
+   */
+  async setSignals(signals: Partial<{ dataTerminalReady: boolean; requestToSend: boolean; }>): Promise<void> {
+    if (this.#state !== 'opened') throw new Error('InvalidStateError: port is not opened');
+    await new Promise<void>((resolve, reject) => {
+      this.#serialPort.set(signals, (err) => err ? reject(err) : resolve());
+    });
+  }
+
+  /**
+   * 制御信号を取得（Web API: getSignals）
+   * @returns {Promise<{ dataCarrierDetect?: boolean; clearToSend?: boolean; dataSetReady?: boolean; ringIndicator?: boolean; }>}
+   * @note Node.js serialportのget()は {cts, dsr, dcd} などを返すため、Web APIのプロパティ名に変換して返します。
+   *       ringIndicatorは未対応です。
+   */
+  async getSignals(): Promise<Partial<{ dataCarrierDetect: boolean; clearToSend: boolean; dataSetReady: boolean; ringIndicator: boolean; }>> {
+    if (this.#state !== 'opened') throw new Error('InvalidStateError: port is not opened');
+    return await new Promise((resolve, reject) => {
+      this.#serialPort.get((err, status) => {
+        if (err) return reject(err);
+        if (!status) return resolve({});
+        resolve({
+          clearToSend: status.cts,
+          dataSetReady: status.dsr,
+          dataCarrierDetect: status.dcd
         });
       });
-
-      // データ受信ハンドラ
-      this.parser.on('data', (data: string) => {
-        try {
-          // JSONメッセージかどうかをチェック
-          if (data.trim().startsWith('{') && data.trim().endsWith('}')) {
-            const jsonData = JSON.parse(data) as SensorData;
-            this.onDataCallback?.(jsonData);
-          } else {
-            // 非JSONメッセージ
-            const message = data.trim();
-            console.log('Arduino message:', message);
-            this.onMessageCallback?.(message);
-          }
-        } catch (e) {
-          console.error('Error parsing JSON:', e);
-          this.onErrorCallback?.(e as Error);
-        }
-      });
-
-      // エラーハンドラ
-      newSerialPort.on('error', (err) => {
-        console.error('Serial port error:', err);
-        this.serialPort = null;
-        this.parser = null;
-        this.onErrorCallback?.(err);
-
-        // 再接続フラグが有効な場合のみ再接続
-        if (this.shouldReconnect) {
-          setTimeout(() => this.connect(), 3000);
-        }
-      });
-
-      // クローズハンドラ
-      newSerialPort.on('close', () => {
-        console.log('Serial port closed');
-        this.serialPort = null;
-        this.parser = null;
-
-        // 再接続フラグが有効な場合のみ再接続
-        if (this.shouldReconnect) {
-          setTimeout(() => this.connect(), 3000);
-        }
-      });
-
-    } catch (err) {
-      console.error('SerialPort.list error:', err);
-      this.onErrorCallback?.(err as Error);
-
-      // 再接続フラグが有効な場合のみ再接続
-      if (this.shouldReconnect) {
-        setTimeout(() => this.connect(), 5000);
-      }
-    }
+    });
   }
 
   /**
-   * シリアルポートから切断
+   * ポートの記憶解除（Web API: forget）
+   * Node.jsでは意味がないためダミー
    */
-  async disconnect(): Promise<void> {
-    // 再接続を無効化
-    this.shouldReconnect = false;
-
-    if (this.serialPort && this.serialPort.isOpen) {
-      console.log('Closing serial port...');
-
-      const error = await new Promise<Error | null>((resolve) => {
-        this.serialPort!.close(resolve);
-      });
-
-      if (error) {
-        console.error('Error closing serial port:', error);
-        throw error;
-      } else {
-        console.log('Serial port closed successfully');
-      }
-    }
-
-    this.serialPort = null;
-    this.parser = null;
+  async forget(): Promise<void> {
+    this.#state = 'forgotten';
+    this.#readable = null;
+    this.#writable = null;
   }
 
   /**
-   * データを送信
+   * 読み取りストリーム（Web API: readable）
+   * ポートがopen状態かつ致命的エラーがなければReadableStream、そうでなければnull
    */
-  write(data: string): boolean {
-    if (this.serialPort && this.serialPort.isOpen) {
-      this.serialPort.write(data);
-      return true;
-    }
-    return false;
+  get readable(): ReadableStream<string> | null {
+    if (this.#state !== 'opened' || this.#readFatal) return null;
+    return this.#readable;
   }
 
   /**
-   * 接続状態を取得
+   * 書き込みストリーム（Web API: writable）
+   * ポートがopen状態かつ致命的エラーがなければWritableStream、そうでなければnull
    */
-  get isConnected(): boolean {
-    return this.serialPort?.isOpen ?? false;
+  get writable(): WritableStream<string> | null {
+    if (this.#state !== 'opened' || this.#writeFatal) return null;
+    return this.#writable;
   }
 
   /**
-   * 再接続フラグを設定
+   * ポートが開いているか
    */
-  setReconnectEnabled(enabled: boolean): void {
-    this.shouldReconnect = enabled;
+  get isOpen(): boolean {
+    return this.#state === 'opened';
+  }
+
+  /**
+   * 論理的な接続状態（Web API: connected）
+   */
+  get connected(): boolean {
+    return this.#state === 'opened';
+  }
+
+  [Symbol.asyncDispose]() {
+    return this.close();
   }
 }
 
-// シングルトンインスタンス
-export const serialManager = new SerialManager();
+
+export const findArduinoPort = async (): Promise<PortInfo | undefined> => {
+
+  const ports: PortInfo[] = await SerialPort.list();
+  const arduinoPort = ports.find(p =>
+    p.vendorId === '2341' ||
+    p.path.includes('ttyACM') ||
+    p.manufacturer?.toLowerCase().includes('arduino')
+  );
+  return arduinoPort;
+}
