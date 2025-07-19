@@ -1,0 +1,18 @@
+{
+  "name": "am2301b-sensor-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "preact": "^10.19.2",
+    "@preact/preset-vite": "2.10.2",
+    "chart.js": "^4.4.1"
+  },
+  "devDependencies": {
+    "vite": "^5.0.10"
+  }
+}
