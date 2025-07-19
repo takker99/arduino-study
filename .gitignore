@@ -43,3 +43,5 @@ lib/readme.txt
 
 # Hardware specific
 *.fzz~
+
+dist/
