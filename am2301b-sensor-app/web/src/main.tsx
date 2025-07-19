@@ -1,5 +1,6 @@
 import { h, render } from 'preact';
 import { useState, useEffect, useRef } from 'preact/hooks';
+import {TextLineStream} from "@std/streams/text-line-stream"
 import Chart from 'chart.js/auto';
 
 function App() {
@@ -10,6 +11,10 @@ function App() {
   const [isConnecting, setIsConnecting] = useState(false);
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstanceRef = useRef<Chart|null>(null);
+  const isActiveRef = useRef<boolean>(false);
+  const decoderRef = useRef<TextDecoderStream|null>(null);
+  const readerRef = useRef<ReadableStreamDefaultReader<string>|null>(null);
+  const pipePromiseRef = useRef<Promise<void>|null>(null);
 
   // シリアル接続・受信処理
   const connectSerial = async () => {
@@ -21,16 +26,18 @@ function App() {
       setPort(serialPort);
 
       // データ受信
-      const decoder = new TextDecoderStream();
-      const readableStreamClosed = serialPort.readable.pipeTo(decoder.writable);
-      const reader = decoder.readable.getReader();
+      decoderRef.current = new TextDecoderStream();
+      pipePromiseRef.current = serialPort.readable.pipeTo(decoderRef.current.writable);
+      readerRef.current = decoderRef.current.readable.pipeThrough(new TextLineStream()).getReader();
 
       // 受信ループ
-      while (true) {
-        const { value, done } = await reader.read();
+      isActiveRef.current = true;
+      while (isActiveRef.current) {
+        const { value, done } = await readerRef.current.read();
         if (done) break;
         if (value) {
           try {
+            console.log(value)
             const json = JSON.parse(value);
             if (json?.result) {
               setTemperature(json.result.temperature);
@@ -49,12 +56,45 @@ function App() {
           }
         }
       }
-      reader.releaseLock();
+      readerRef.current.releaseLock();
     } catch (err) {
       alert('シリアル接続に失敗しました');
     } finally {
       setIsConnecting(false);
     }
+  };
+
+  // シリアル切断処理
+  const disconnectSerial = async () => {
+    isActiveRef.current = false;
+    if (readerRef.current) {
+      try {
+        await readerRef.current.cancel();
+        readerRef.current.releaseLock();
+      } catch (e) {}
+      readerRef.current = null;
+    }
+    if (pipePromiseRef.current) {
+      try {
+        // pipeToのPromiseをabort（ストリーム解除）
+        await pipePromiseRef.current.catch(() => {});
+      } catch (e) {}
+      pipePromiseRef.current = null;
+    }
+    if (decoderRef.current) {
+      decoderRef.current = null;
+    }
+    if (port) {
+      try {
+        if (port.readable && port.readable.locked) {
+          // ストリームがロックされていれば解除
+          await port.readable.cancel();
+        }
+        await port.close();
+      } catch (e) {}
+      setPort(null);
+    }
+    setIsConnecting(false);
   };
 
   // 履歴が更新されたらグラフを描画・更新
@@ -122,6 +162,9 @@ function App() {
       <button onClick={connectSerial} disabled={isConnecting || !!port}>
         {isConnecting ? '接続中...' : port ? '接続済み' : 'Arduinoと接続'}
       </button>
+      {port && (
+        <button onClick={disconnectSerial} style={{marginLeft: '1em'}}>切断</button>
+      )}
       <div>温度: {temperature ?? '--'} ℃</div>
       <div>湿度: {humidity ?? '--'} %</div>
       <div style={{marginTop: '1em'}}>

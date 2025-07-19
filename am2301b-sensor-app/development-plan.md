@@ -40,7 +40,8 @@ Arduino Uno R4 + AM2301B温湿度センサー + Web SPA (preact+vite) の制御�
 - 変更は意味単位ごとに分割してcommitする
 - commitメッセージはConventional Commit規約に則り英語で書く
 - すべての変更をcommitし切ってから次のステップに進む
-- 進捗・課題はチャットで随時報告
+- git_stage（git status）で全変更がcommit済みか必ず確認する
+- 進捗・課題はチャットで随時報告（実機テスト依頼時のみ）
 - 重要な知見は`knowledge/`にMarkdownで体系化
 
 ---
