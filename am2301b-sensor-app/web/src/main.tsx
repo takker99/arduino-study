@@ -5,6 +5,7 @@ import Chart from 'chart.js/auto';
 function App() {
   const [temperature, setTemperature] = useState<number | null>(null);
   const [humidity, setHumidity] = useState<number | null>(null);
+  const [history, setHistory] = useState<Array<{ t: number, h: number, time: number }>>([]);
   const [port, setPort] = useState<any>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
@@ -32,6 +33,14 @@ function App() {
             if (json?.result) {
               setTemperature(json.result.temperature);
               setHumidity(json.result.humidity);
+              setHistory(prev => [
+                ...prev,
+                {
+                  t: json.result.temperature,
+                  h: json.result.humidity,
+                  time: Date.now()
+                }
+              ]);
             }
           } catch (e) {
             // JSONパース失敗は無視
