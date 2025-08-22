@@ -4,23 +4,44 @@
 // JSON-RPC: https://www.jsonrpc.org/specification
 
 #include <Arduino.h>
-// センサーライブラリ削除。ダミーデータ送信。
+#include <DHT.h>
+
+// AM2301Bセンサー設定
+constexpr auto DHTPIN = 2;      // AM2301Bデータピン (デジタルピン2)
+constexpr auto DHTTYPE = DHT21; // AM2301BはDHT21互換
+
+DHT dht(DHTPIN, DHTTYPE);
 
 void setup() {
   Serial.begin(115200);
-  // ダミーデータ用の乱数初期化
-  randomSeed(analogRead(0));
+
+  // 内蔵プルアップ抵抗を有効化（外付け抵抗がない場合の対策）
+  pinMode(DHTPIN, INPUT_PULLUP);
+
+  dht.begin();
+
+  // センサー初期化待機
+  delay(2000);
+  Serial.println("AM2301B sensor initialized (with internal pullup)");
 }
 
 void loop() {
-  // ダミー温度: 20.0〜30.0℃
-  float t = 20.0 + (random(0, 1000) / 100.0);
-  // ダミー湿度: 40.0〜60.0%
-  float h = 40.0 + (random(0, 2000) / 100.0);
-  // JSON-RPCレスポンス例
+  // センサーからデータ読み取り
+  const float h = dht.readHumidity();
+  const float t = dht.readTemperature();
+
+  // 読み取りエラーチェック
+  if (isnan(h) || isnan(t)) {
+    Serial.println("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-1,\"message\":\"Sensor read error\"},\"id\":1}");
+    delay(1000);
+    return;
+  }
+
+  // JSON-RPCレスポンス送信
   Serial.print("{\"jsonrpc\":\"2.0\",\"result\":{");
-  Serial.print("\"temperature\":"); Serial.print(t);
-  Serial.print(",\"humidity\":"); Serial.print(h);
+  Serial.print("\"temperature\":"); Serial.print(t, 2);
+  Serial.print(",\"humidity\":"); Serial.print(h, 2);
   Serial.println("},\"id\":1}");
+
   delay(1000);
 }
