@@ -13,7 +13,7 @@ export async function listAvailablePorts() {
     console.error("利用可能なポート一覧:");
     for (const p of ports) {
       const vidpid = [p.vendorId, p.productId].filter(Boolean).join(":");
-      console.error(`  ${p.path}  ${vidpid ? "[" + vidpid + "]" : ""}`);
+      console.error(`  ${p.path}  ${vidpid ? `[${vidpid}]` : ""}`);
     }
   } catch (e) {
     console.error("ポート列挙に失敗:", (e as Error).message);
@@ -52,7 +52,7 @@ export async function selectPortInteractive(rescanMs = 3000): Promise<string> {
         const marker = i === selectedIndex ? ">" : " ";
         const vidpid = [p.vendorId, p.productId].filter(Boolean).join(":");
         console.log(
-          `${marker} [${i}] ${p.path} ${vidpid ? "(" + vidpid + ")" : ""}`,
+          `${marker} [${i}] ${p.path} ${vidpid ? `(${vidpid})` : ""}`,
         );
       });
     }
