@@ -1,0 +1,5 @@
+packages:
+  - "calibration-test"
+onlyBuiltDependencies:
+  - "@serialport/bindings-cpp"
+  - esbuild

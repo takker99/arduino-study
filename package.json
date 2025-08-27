@@ -1,0 +1,9 @@
+{
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.2",
+    "@typescript/native-preview": "7.0.0-dev.20250827.1"
+  },
+  "scripts": {
+    "calibration-test": "pnpm -C calibration-test"
+  }
+}
