@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.2"
+  },
+  "scripts": {
+    "calibration-test": "pnpm -C calibration-test"
+  }
+}
