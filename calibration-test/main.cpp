@@ -129,7 +129,7 @@ namespace {
     Serial.print("DATA t="); Serial.print(tRel);
     Serial.print(" raw="); Serial.print(avg); // rawとavgを現段階同一とする (高速化優先)
     Serial.print(" avg="); Serial.println(avg);
-    showValue(avg % 1000); // 下位2桁を使用表示 (簡易)
+    showValue(avg % 100); // 下位2桁を符号付きで表示
   }
 }
 
